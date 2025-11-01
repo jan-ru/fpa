@@ -1,0 +1,26 @@
+# Iceberg Catalog Configuration
+catalog:
+  type: hadoop
+  warehouse: data/iceberg/warehouse
+  
+# File format settings
+format:
+  default: parquet
+  compression: snappy
+
+# Schema evolution settings
+schema:
+  allow_incompatible_changes: false
+  auto_promote: true
+
+# Metadata settings
+metadata:
+  delete_after_commit: false
+  commit_retry_num_retries: 3
+  commit_retry_delay_ms: 1000
+
+# Performance settings
+performance:
+  split_size: 134217728  # 128MB
+  lookback_size: 10
+  max_snapshot_age_ms: 86400000  # 24 hours

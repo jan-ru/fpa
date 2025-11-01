@@ -12,8 +12,29 @@ wheels/
 # Claude Code configuration
 CLAUDE.md
 
-# Data files
-data/
+# Data files - keep structure but ignore data
+data/raw/*.xlsx
+data/raw/*.csv
+data/warehouse/*.duckdb
+data/warehouse/*.duckdb.wal
+data/iceberg/*
+
+# dbt
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
 
 # Database files
 *.db
+*.db.wal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment variables
+.env
+.env.*

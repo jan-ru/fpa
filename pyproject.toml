@@ -1,13 +1,19 @@
 [project]
 name = "nicegui-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Analyse XAF files using version controlled data (iceberg) and transformations (dbt)."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "duckdb>=1.4.1",
     "fastexcel>=0.16.0",
     "nicegui>=3.2.0",
     "polars>=1.35.1",
     "pyarrow>=22.0.0",
+    "dbt-duckdb>=1.8.0",
+    "pyiceberg>=0.7.0",
+    "fsspec>=2024.0.0",
+    "s3fs>=2024.0.0",
+    "pyyaml>=6.0.0",
+    "plotly>=6.3.1",
 ]

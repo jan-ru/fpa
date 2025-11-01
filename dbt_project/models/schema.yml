@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  # Staging models
+  - name: stg_financial_transactions
+    description: "Staging model for financial transactions from Iceberg versioned data"
+    columns:
+      - name: account_code
+        description: "Account code (CodeGrootboekrekening)"
+        tests:
+          - not_null
+      - name: transaction_date
+        description: "Transaction date (Boekdatum)"
+        tests:
+          - not_null
+      - name: debit_amount
+        description: "Debit amount in EUR"
+      - name: credit_amount
+        description: "Credit amount in EUR"
+      - name: net_amount
+        description: "Net amount (debit - credit)"
+      - name: transaction_year
+        description: "Year extracted from transaction date"
+      - name: transaction_quarter
+        description: "Quarter extracted from transaction date"
+
+  # Intermediate models  
+  - name: int_account_balances
+    description: "Intermediate model with account balances and aggregations"
+    columns:
+      - name: account_code
+        description: "Account code"
+        tests:
+          - unique
+          - not_null
+      - name: total_transactions
+        description: "Total number of transactions for this account"
+      - name: net_balance
+        description: "Net balance for this account"
+      - name: activity_status
+        description: "Account activity status (Active, Recently Active, Inactive)"
+
+  # Mart models
+  - name: mart_account_summary
+    description: "Account summary mart for analytics and reporting"
+    columns:
+      - name: account_code
+        description: "Account code"
+        tests:
+          - unique
+          - not_null
+      - name: account_name
+        description: "Account name"
+      - name: total_debit
+        description: "Total debit amount"
+      - name: total_credit
+        description: "Total credit amount"
+      - name: net_balance
+        description: "Net balance (total_debit - total_credit)"
+      - name: transaction_volume_category
+        description: "Categorization based on transaction volume"
+      - name: last_updated
+        description: "Timestamp when record was last updated"
+
+  - name: mart_transaction_details
+    description: "Transaction details mart for transaction-level analysis"
+    columns:
+      - name: transaction_id
+        description: "Unique transaction identifier"
+        tests:
+          - unique
+          - not_null
+      - name: account_code
+        description: "Account code"
+        tests:
+          - not_null
+      - name: transaction_date
+        description: "Transaction date"
+        tests:
+          - not_null
+      - name: net_amount
+        description: "Net transaction amount"
+      - name: running_balance
+        description: "Running balance for the account"
+      - name: data_quality_flag
+        description: "Data quality indicator"
