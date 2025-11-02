@@ -5,21 +5,44 @@ Handles data loading, processing, and preparation for UI components.
 
 from typing import List, Dict
 from data_access import data_access
+from config.data_schemas import (
+    standardize_financial_data, 
+    read_excel_with_schema,
+    EXCEL_FILE_METADATA_SCHEMA,
+    validate_schema
+)
+from utils.error_boundaries import (
+    database_boundary, excel_boundary, file_boundary, 
+    DataSourceError
+)
+from components.lazy_loader import lazy_data
 
 
+@lazy_data('accounts')
+@database_boundary('get_account_summary', fallback=[])
 def get_sorted_accounts() -> List[Dict]:
-    """Get account summary data sorted by account code."""
+    """Get account summary data sorted by account code with standardized types."""
     accounts = data_access.get_account_summary()
     if accounts:
+        # Standardize data types (convert Decimals to floats)
+        accounts = standardize_financial_data(accounts)
         return sorted(accounts, key=lambda x: x.get('account_code', ''))
     return []
 
 
+@lazy_data('transactions')
+@database_boundary('get_transaction_details', fallback=[])
 def get_limited_transactions(limit: int = 20) -> List[Dict]:
-    """Get transaction details with specified limit."""
-    return data_access.get_transaction_details(limit=limit)
+    """Get transaction details with specified limit and standardized types."""
+    transactions = data_access.get_transaction_details(limit=limit)
+    if transactions:
+        # Standardize data types
+        transactions = standardize_financial_data(transactions)
+    return transactions or []
 
 
+@lazy_data('excel_files')
+@excel_boundary('scan_directory', fallback=[])
 def get_excel_files_data() -> List[Dict]:
     """Get Excel files data with processing status."""
     # Import here to avoid circular dependencies
@@ -35,20 +58,47 @@ def get_excel_files_data() -> List[Dict]:
         for file_path in data_dir.glob("*.xlsx"):
             stat = file_path.stat()
             
-            # Get Excel file dimensions using polars
+            # Get Excel file dimensions and financial totals using polars with schema
             try:
-                # Read just the first few rows to get dimensions efficiently
-                df_sample = pl.read_excel(file_path, read_options={"n_rows": 1})
-                n_columns = len(df_sample.columns)
-                
-                # For row count, we need to read the full file (but efficiently)
-                df_full = pl.read_excel(file_path)
+                # Read the full file to calculate totals with proper data types
+                df_full = read_excel_with_schema(str(file_path))
+                n_columns = len(df_full.columns)
                 n_rows = len(df_full)
+                
+                # Calculate debit and credit totals
+                total_debit = 0.0
+                total_credit = 0.0
+                
+                # Look for common column names for debit/credit amounts
+                debit_columns = [col for col in df_full.columns if 'debit' in col.lower()]
+                credit_columns = [col for col in df_full.columns if 'credit' in col.lower()]
+                
+                # Sum debit amounts
+                for col in debit_columns:
+                    try:
+                        # Convert to numeric and sum, handling any non-numeric values
+                        debit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
+                        if debit_sum is not None:
+                            total_debit += debit_sum
+                    except:
+                        pass
+                
+                # Sum credit amounts  
+                for col in credit_columns:
+                    try:
+                        # Convert to numeric and sum, handling any non-numeric values
+                        credit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
+                        if credit_sum is not None:
+                            total_credit += credit_sum
+                    except:
+                        pass
                 
             except Exception as e:
                 # If we can't read the file, set defaults
                 n_columns = 0
                 n_rows = 0
+                total_debit = 0.0
+                total_credit = 0.0
             
             excel_files.append({
                 "filename": file_path.name,
@@ -57,12 +107,16 @@ def get_excel_files_data() -> List[Dict]:
                 "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
                 "n_columns": n_columns,
                 "n_rows": n_rows,
+                "total_debit": round(total_debit, 2),
+                "total_credit": round(total_credit, 2),
                 "status": "Skipped" if 'DUMP2024' in file_path.name else "Processed"
             })
     
     return sorted(excel_files, key=lambda x: x["modified"], reverse=True)
 
 
+@lazy_data('dbt_models')
+@file_boundary('scan_dbt_models', fallback=[])
 def get_dbt_models_data() -> List[Dict]:
     """Get DBT model information for lineage display."""
     # Import here to avoid circular dependencies

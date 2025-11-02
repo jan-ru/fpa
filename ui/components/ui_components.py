@@ -12,7 +12,7 @@ def create_stats_cards(stats_config: List[Dict], stats_cards: Dict):
     with ui.row().classes('w-full gap-4 mb-4'):
         for config in stats_config:
             with ui.card().classes('flex-1 p-4 text-center'):
-                stats_cards[config['key']] = ui.label(config['label']).classes('text-h6')
+                stats_cards[config['key']] = ui.label(config['label']).classes('text-subtitle2').style('font-size: 0.8rem;')
 
 
 def create_page_header(title: str, subtitle: str = None, classes: str = 'text-h4 mb-4'):
@@ -63,7 +63,7 @@ def create_bulma_date_filter():
             <input class="input is-small" type="date" id="endDate" style="width: 150px;">
         </div>
         <div class="control">
-            <button class="button is-medium btn-emphasized" id="applyDateFilter" style="margin-left: 8px;">
+            <button class="button is-small btn-emphasized" id="applyDateFilter" style="margin-left: 8px; font-size: 0.7rem; padding: 4px 8px; height: 28px;">
                 <span class="icon is-small">
                     <i class="fas fa-filter"></i>
                 </span>
@@ -71,7 +71,7 @@ def create_bulma_date_filter():
             </button>
         </div>
         <div class="control">
-            <button class="button is-medium btn-transparent" id="clearDateFilter" style="margin-left: 4px;">
+            <button class="button is-small btn-transparent" id="clearDateFilter" style="margin-left: 4px; font-size: 0.7rem; padding: 4px 8px; height: 28px;">
                 <span class="icon is-small">
                     <i class="fas fa-times"></i>
                 </span>
