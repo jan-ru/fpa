@@ -1,14 +1,16 @@
-# Financial Data Platform v0.0.2
+# Financial Data Platform v0.0.4
 
 Modern financial data analysis platform with integrated dashboard, analytics, and lineage visualization. Built with NiceGUI, dbt, DuckDB, and Apache Iceberg for enterprise-grade data management.
+
+**v0.0.4**: Enhanced with Bulma CSS styling, modular architecture, and improved code maintainability.
 
 ## 🚀 Key Features
 
 ### 📊 **Unified Dashboard**
 - Real-time filtered statistics for accounts and transactions  
-- Dual-view grids: accounts summary and transaction details
+- Professional Bulma-styled tables with consistent formatting
 - Dynamic filtering (years, quarters, months) with instant updates
-- Interactive AG-Grid tables with search, sort, and export
+- Enhanced UI with professional button styling and date pickers
 
 ### 📈 **Advanced Analytics** 
 - Plotly-powered interactive charts and visualizations
@@ -22,11 +24,12 @@ Modern financial data analysis platform with integrated dashboard, analytics, an
 - Direct access to dbt documentation and column lineage
 - Visual data flow from sources to marts
 
-### 🗂️ **Data Management**
-- Excel file inventory and processing status
+### 🗂️ **Enhanced Data Management**
+- Excel file inventory with detailed metrics (columns, rows, size)
+- Clean, streamlined interface without unnecessary filters
+- Processing status tracking and file analysis
 - Iceberg-based version control and time travel
 - dbt-powered data transformations
-- Automated data quality validation
 
 ## 🚀 Quick Start
 
@@ -39,18 +42,23 @@ Modern financial data analysis platform with integrated dashboard, analytics, an
 # Install dependencies
 uv sync
 
-# Run the application
-cd ui && uv run python main_v0_0_2.py
+# Run the application (v0.0.4)
+cd ui && uv run python main_v0_0_4.py
+
+# Or run v0.0.3 (legacy)
+cd ui && uv run python main_v0_0_3.py
 ```
 
-**Access at:** http://localhost:8086
+**Access at:** 
+- v0.0.4: http://localhost:8091
+- v0.0.3: http://localhost:8088
 
 ### Application Tabs
-- **Inputs**: Excel file management and import status
-- **Dashboard**: Unified view with filtered statistics and data grids  
-- **Analytics**: Interactive charts and BI integration mockups
-- **Lineage**: Embedded dbt model visualization and documentation
-- **Admin**: System administration (future enhancements)
+- **Inputs**: Enhanced Excel file inventory with Bulma tables
+- **Dashboard**: Professional UI with filtered statistics and enhanced styling  
+- **Analytics**: Interactive charts with Lightdash integration mockups
+- **Lineage**: dbt model visualization with consistent table styling
+- **Admin**: System administration interface
 
 ## 📁 Project Structure
 
@@ -71,9 +79,14 @@ financial-data-platform/
 │   ├── ingest_excel.py         # Excel file processing
 │   └── time_travel.py          # Version control & time travel
 ├── ui/                          # NiceGUI application
-│   ├── main_v0_0_2.py         # v0.0.2 with unified dashboard & analytics
-│   ├── data_access.py          # Data access layer
-│   └── data_refresh.py         # Automated refresh workflows
+│   ├── main_v0_0_4.py         # v0.0.4 with Bulma CSS & modular architecture
+│   ├── main_v0_0_3.py         # v0.0.3 legacy version
+│   ├── components/            # UI components (tables, forms, buttons)
+│   ├── services/              # Data processing services
+│   ├── utils/                 # Utility functions (filters, stats, version)
+│   ├── config/                # Application configuration
+│   ├── data_access.py         # Data access layer
+│   └── data_refresh.py        # Automated refresh workflows
 └── docs/                        # Documentation
 ```
 
@@ -134,6 +147,7 @@ uv run dbt docs generate && uv run dbt docs serve
 - **[Plotly](https://plotly.com/python/)**: Interactive visualization library
 
 ### Supporting Tools
+- **Bulma CSS**: Professional component styling framework
 - **PyArrow**: Data interchange between systems
 - **FastExcel**: Efficient Excel file processing  
 - **uv**: Fast Python package manager
@@ -180,7 +194,8 @@ cd dbt_project && uv run dbt run
 
 ---
 
-**Version**: 0.0.2  
+**Version**: 0.0.4  
 **Status**: ✅ Production Ready  
 **Last Updated**: November 2025  
-**Python Version**: 3.12+ (3.13 compatible)
+**Python Version**: 3.12+ (3.13 compatible)  
+**Architecture**: Modular with DRY principles

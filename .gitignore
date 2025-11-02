@@ -11,6 +11,7 @@ wheels/
 
 # Claude Code configuration
 CLAUDE.md
+change_log/
 
 # Data files - keep structure but ignore data
 data/raw/*.xlsx
