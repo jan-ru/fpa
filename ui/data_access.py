@@ -30,15 +30,23 @@ class DataAccessLayer:
             result = conn.execute(query)
             return result.fetchall() if fetch_all else result.fetchone()
     
-    def query_to_dict_list(self, query: str) -> List[Dict]:
+    def query_to_dict_list(self, query: str, apply_source_filter: bool = True) -> List[Dict]:
         """Execute query and convert results to list of dictionaries."""
+        # Apply source file filtering if enabled
+        if apply_source_filter:
+            try:
+                from utils.source_filter import source_filter
+                query = source_filter.apply_filter_to_query(query)
+            except ImportError:
+                pass  # Source filtering not available
+        
         with self.get_dbt_connection() as conn:
             result = conn.execute(query).fetchall()
             columns = [desc[0] for desc in conn.description]
             return [dict(zip(columns, row)) for row in result]
     
     # Account Summary Methods
-    def get_account_summary(self) -> List[Dict]:
+    def get_account_summary(self, limit: int = None, offset: int = 0) -> List[Dict]:
         """Get account summary from dbt mart."""
         query = """
         SELECT 
@@ -62,7 +70,17 @@ class DataAccessLayer:
         FROM mart_account_summary
         ORDER BY abs(net_balance) DESC
         """
+        
+        if limit is not None:
+            query += f" LIMIT {limit} OFFSET {offset}"
+            
         return self.query_to_dict_list(query)
+    
+    def get_account_summary_count(self) -> int:
+        """Get total count of accounts."""
+        query = "SELECT COUNT(*) as count FROM mart_account_summary"
+        result = self.execute_dbt_query(query, fetch_all=False)
+        return result[0] if result else 0
     
     def get_top_accounts_by_balance(self, limit: int = 10) -> List[Dict]:
         """Get top accounts by balance."""
@@ -124,13 +142,20 @@ class DataAccessLayer:
         """
         return self.query_to_dict_list(query)
     
+    def get_transaction_details_count(self) -> int:
+        """Get total count of transactions."""
+        query = "SELECT COUNT(*) as count FROM mart_transaction_details"
+        result = self.execute_dbt_query(query, fetch_all=False)
+        return result[0] if result else 0
+    
     def get_filtered_transactions(self, 
                                  years: Optional[List[int]] = None,
                                  quarters: Optional[List[int]] = None, 
                                  months: Optional[List[int]] = None,
                                  account_codes: Optional[List[str]] = None,
                                  amount_categories: Optional[List[str]] = None,
-                                 limit: int = 1000) -> List[Dict]:
+                                 limit: int = 1000,
+                                 offset: int = 0) -> List[Dict]:
         """Get filtered transactions with enhanced filtering."""
         where_conditions = []
         
@@ -174,7 +199,7 @@ class DataAccessLayer:
         FROM mart_transaction_details
         {where_clause}
         ORDER BY transaction_date DESC, booking_number DESC
-        LIMIT {limit}
+        LIMIT {limit} OFFSET {offset}
         """
         return self.query_to_dict_list(query)
     

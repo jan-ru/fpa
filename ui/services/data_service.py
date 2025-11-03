@@ -22,7 +22,43 @@ from components.lazy_loader import lazy_data
 @database_boundary('get_account_summary', fallback=[])
 def get_sorted_accounts() -> List[Dict]:
     """Get account summary data sorted by account code with standardized types."""
-    accounts = data_access.get_account_summary()
+    # Check if there are active filters
+    try:
+        from utils.state_management import get_current_filter_state
+        filter_state = get_current_filter_state()
+        
+        # If filters are active, get filtered data
+        if filter_state.years or filter_state.months or filter_state.quarters:
+            # Get filtered transactions first
+            transactions = data_access.get_filtered_transactions(
+                years=list(filter_state.years) if filter_state.years else None,
+                quarters=list(filter_state.quarters) if filter_state.quarters else None,
+                months=list(filter_state.months) if filter_state.months else None,
+                limit=50000  # Large limit to get all for aggregation
+            )
+            
+            if transactions:
+                # Aggregate to account level
+                import polars as pl
+                df = pl.DataFrame(transactions)
+                accounts = df.group_by(["account_code", "account_name"]).agg([
+                    pl.len().alias("total_transactions"),
+                    pl.col("debit_amount").sum().alias("total_debit"),
+                    pl.col("credit_amount").sum().alias("total_credit"),
+                    pl.col("net_amount").sum().alias("net_balance"),
+                ]).with_columns([
+                    pl.when(pl.col("net_balance") > 0).then(pl.lit("Net Debit")).otherwise(pl.lit("Net Credit")).alias("account_balance_type"),
+                    pl.lit("Active").alias("activity_status")
+                ]).to_dicts()
+            else:
+                accounts = []
+        else:
+            # No filters, get all accounts
+            accounts = data_access.get_account_summary()
+    except:
+        # Fallback to unfiltered data if filter state is not available
+        accounts = data_access.get_account_summary()
+    
     if accounts:
         # Standardize data types (convert Decimals to floats)
         accounts = standardize_financial_data(accounts)
@@ -34,10 +70,34 @@ def get_sorted_accounts() -> List[Dict]:
 @database_boundary('get_transaction_details', fallback=[])
 def get_limited_transactions(limit: int = 20) -> List[Dict]:
     """Get transaction details with specified limit and standardized types."""
-    transactions = data_access.get_transaction_details(limit=limit)
+    # Check if there are active filters
+    try:
+        from utils.state_management import get_current_filter_state
+        filter_state = get_current_filter_state()
+        
+        # If filters are active, get filtered data
+        if filter_state.years or filter_state.months or filter_state.quarters:
+            transactions = data_access.get_filtered_transactions(
+                years=list(filter_state.years) if filter_state.years else None,
+                quarters=list(filter_state.quarters) if filter_state.quarters else None,
+                months=list(filter_state.months) if filter_state.months else None,
+                limit=limit
+            )
+        else:
+            # No filters, get regular transaction details
+            transactions = data_access.get_transaction_details(limit=limit)
+    except:
+        # Fallback to unfiltered data if filter state is not available
+        transactions = data_access.get_transaction_details(limit=limit)
+    
     if transactions:
         # Standardize data types
         transactions = standardize_financial_data(transactions)
+        # Sort by Account Code, then by Transaction Date
+        transactions = sorted(transactions, key=lambda x: (
+            x.get('account_code', ''), 
+            x.get('transaction_date', '')
+        ))
     return transactions or []
 
 
@@ -69,26 +129,40 @@ def get_excel_files_data() -> List[Dict]:
                 total_debit = 0.0
                 total_credit = 0.0
                 
-                # Look for common column names for debit/credit amounts
-                debit_columns = [col for col in df_full.columns if 'debit' in col.lower()]
-                credit_columns = [col for col in df_full.columns if 'credit' in col.lower()]
+                # Get column names as list for positional access
+                column_names = df_full.columns
                 
-                # Sum debit amounts
-                for col in debit_columns:
+                # Method 1: Try specific column positions (L = column 12, 0-indexed = 11)
+                # Method 2: Look for columns with 'debit' or 'credit' in name
+                # Method 3: Look for numeric columns that might contain amounts
+                
+                # First try positional approach for column L (index 11)
+                if len(column_names) > 11:  # Column L exists
                     try:
-                        # Convert to numeric and sum, handling any non-numeric values
-                        debit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
+                        col_l = column_names[11]  # Column L (0-indexed)
+                        debit_sum = df_full.select(pl.col(col_l).cast(pl.Float64, strict=False).sum()).item()
                         if debit_sum is not None:
-                            total_debit += debit_sum
+                            total_debit = debit_sum
                     except:
                         pass
                 
-                # Sum credit amounts  
+                # Try to find debit/credit columns by name if positional failed
+                if total_debit == 0.0:
+                    debit_columns = [col for col in column_names if any(term in col.lower() for term in ['debit', 'soll', 'amount']) and 'credit' not in col.lower()]
+                    for col in debit_columns:
+                        try:
+                            debit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
+                            if debit_sum is not None and debit_sum > 0:
+                                total_debit += debit_sum
+                        except:
+                            pass
+                
+                # Find credit columns
+                credit_columns = [col for col in column_names if any(term in col.lower() for term in ['credit', 'haben', 'kredit'])]
                 for col in credit_columns:
                     try:
-                        # Convert to numeric and sum, handling any non-numeric values
                         credit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
-                        if credit_sum is not None:
+                        if credit_sum is not None and credit_sum > 0:
                             total_credit += credit_sum
                     except:
                         pass
@@ -109,10 +183,22 @@ def get_excel_files_data() -> List[Dict]:
                 "n_rows": n_rows,
                 "total_debit": round(total_debit, 2),
                 "total_credit": round(total_credit, 2),
-                "status": "Skipped" if 'DUMP2024' in file_path.name else "Processed"
+                "status": "Skipped" if 'DUMP2024' in file_path.name else "Processed",
+                "source": "File System Scan"
             })
     
-    return sorted(excel_files, key=lambda x: x["modified"], reverse=True)
+    # Sort by filename and update source filter
+    sorted_files = sorted(excel_files, key=lambda x: x["filename"])
+    
+    # Update source filter with available files
+    try:
+        from utils.source_filter import source_filter
+        filenames = [f["filename"] for f in sorted_files]
+        source_filter.set_available_files(filenames)
+    except ImportError:
+        pass  # Source filtering not available
+    
+    return sorted_files
 
 
 @lazy_data('dbt_models')
@@ -162,3 +248,54 @@ def get_dbt_models_data() -> List[Dict]:
         
     except Exception as e:
         return model_data
+
+
+# Pagination wrapper functions for existing lazy-loaded data
+def get_accounts_paginated(offset: int, limit: int) -> tuple[list, int]:
+    """
+    Get paginated account data from cached lazy-loaded data.
+    
+    Args:
+        offset: Starting record number (0-based)
+        limit: Number of records to return
+        
+    Returns:
+        Tuple of (page_data, total_count)
+    """
+    # Get all cached account data
+    all_accounts = get_sorted_accounts()
+    
+    # Calculate pagination
+    total_count = len(all_accounts)
+    start_idx = offset
+    end_idx = offset + limit
+    
+    # Slice the data for current page
+    page_data = all_accounts[start_idx:end_idx]
+    
+    return page_data, total_count
+
+
+def get_transactions_paginated(offset: int, limit: int) -> tuple[list, int]:
+    """
+    Get paginated transaction data from cached lazy-loaded data.
+    
+    Args:
+        offset: Starting record number (0-based)
+        limit: Number of records to return
+        
+    Returns:
+        Tuple of (page_data, total_count)
+    """
+    # Get all cached transaction data (use a larger limit to get more data)
+    all_transactions = get_limited_transactions(limit=1000)  # Get more than the default 20
+    
+    # Calculate pagination
+    total_count = len(all_transactions)
+    start_idx = offset
+    end_idx = offset + limit
+    
+    # Slice the data for current page
+    page_data = all_transactions[start_idx:end_idx]
+    
+    return page_data, total_count

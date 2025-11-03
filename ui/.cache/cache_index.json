@@ -1,1 +1,1 @@
-{"iceberg_snapshots": {"created_at": 1762115865.627723, "ttl": 300, "access_count": 11, "last_accessed": 1762116040.455244, "file_size": 668}, "database_info": {"created_at": 1762115865.6318269, "ttl": 600, "access_count": 11, "last_accessed": 1762116040.458726, "file_size": 121}}
+{"database_info": {"created_at": 1762180394.42308, "ttl": 600, "access_count": 4, "last_accessed": 1762180936.257152, "file_size": 121}, "iceberg_snapshots": {"created_at": 1762180865.187304, "ttl": 300, "access_count": 1, "last_accessed": 1762180936.248501, "file_size": 668}}

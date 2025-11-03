@@ -124,3 +124,78 @@ def get_dbt_run_status() -> dict:
             'status': 'error',
             'icon': 'fas fa-exclamation-triangle'
         }
+
+
+def get_dbt_command_status(command_type: str) -> dict:
+    """
+    Get status for a specific dbt command (debug, run, or test).
+    
+    Args:
+        command_type: One of 'debug', 'run', or 'test'
+    
+    Returns:
+        Dictionary with command-specific status details
+    """
+    dbt_log_path = Paths.DBT_PROJECT / "logs" / "dbt.log"
+    
+    if not dbt_log_path.exists():
+        return {
+            'last_run': 'No log file found',
+            'status': 'unknown',
+            'icon': 'fas fa-question-circle'
+        }
+    
+    try:
+        with open(dbt_log_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Look for the most recent run of the specific command
+        for line in reversed(lines[-300:]):  # Check last 300 lines
+            if f'Command `dbt {command_type}' in line and ('failed at' in line or 'succeeded at' in line):
+                command_match = re.search(r'Command `(dbt [^`]+)`', line)
+                time_match = re.search(r'at (\d{2}:\d{2}:\d{2})', line)
+                
+                if command_match and time_match:
+                    success = 'succeeded' in line
+                    mod_time = datetime.fromtimestamp(dbt_log_path.stat().st_mtime)
+                    
+                    if success:
+                        return {
+                            'last_run': f"✓ dbt {command_type} at {mod_time.strftime('%m-%d')} {time_match.group(1)}",
+                            'status': 'success',
+                            'icon': 'fas fa-check-circle'
+                        }
+                    else:
+                        return {
+                            'last_run': f"✗ dbt {command_type} at {mod_time.strftime('%m-%d')} {time_match.group(1)}",
+                            'status': 'error',
+                            'icon': 'fas fa-times-circle'
+                        }
+        
+        # No specific command found
+        return {
+            'last_run': f"No dbt {command_type} found",
+            'status': 'info',
+            'icon': 'fas fa-info-circle'
+        }
+    
+    except Exception as e:
+        return {
+            'last_run': f"Error reading log",
+            'status': 'error',
+            'icon': 'fas fa-exclamation-triangle'
+        }
+
+
+def get_all_dbt_command_status() -> dict:
+    """
+    Get status for all three dbt commands: debug, run, and test.
+    
+    Returns:
+        Dictionary with status for each command
+    """
+    return {
+        'debug': get_dbt_command_status('debug'),
+        'run': get_dbt_command_status('run'), 
+        'test': get_dbt_command_status('test')
+    }

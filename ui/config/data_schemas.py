@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 # Excel file schemas
 EXCEL_FINANCIAL_SCHEMA = {
-    # Common financial Excel columns
+    # Common financial Excel columns (original schema)
     'account_code': pl.Utf8,  # Keep as string to preserve leading zeros
     'account_name': pl.Utf8,
     'transaction_date': pl.Date,
@@ -21,6 +21,28 @@ EXCEL_FINANCIAL_SCHEMA = {
     'reference': pl.Utf8,
     'booking_number': pl.Utf8,
     'transaction_id': pl.Utf8,
+    
+    # Additional columns found in actual Excel files
+    # Based on DUMP files with Dutch column names
+    'CodeAdministratie': pl.Utf8,
+    'NaamAdministratie': pl.Utf8,
+    'CodeGrootboekrekening': pl.Utf8,  # Account code
+    'NaamGrootboekrekening': pl.Utf8,  # Account name
+    'Code': pl.Utf8,
+    'Boekingsnummer': pl.Utf8,  # Booking number
+    'Boekdatum': pl.Date,  # Booking date
+    'Periode': pl.Utf8,  # Period
+    'Code1': pl.Utf8,
+    'Code2': pl.Utf8,
+    'Omschrijving': pl.Utf8,  # Description
+    'Debet': pl.Float64,  # Debit amount
+    'Credit': pl.Float64,  # Credit amount
+    'Saldo': pl.Float64,  # Balance
+    'Btwbedrag': pl.Float64,  # VAT amount
+    'Btwcode': pl.Utf8,  # VAT code
+    'Boekingsstatus': pl.Utf8,  # Booking status (Concept/Definitief)
+    'Nummer': pl.Utf8,  # Number
+    'Factuurnummer': pl.Utf8,  # Invoice number
 }
 
 # Database output schemas
@@ -69,6 +91,7 @@ EXCEL_FILE_METADATA_SCHEMA = {
     'modified': pl.Utf8,  # Keep as string for display formatting
     'status': pl.Utf8,
     'path': pl.Utf8,
+    'source': pl.Utf8,  # Source of the data
 }
 
 # DBT model schema
@@ -104,10 +127,6 @@ def get_excel_read_options(file_path: str) -> Dict[str, Any]:
     """
     return {
         'schema_overrides': EXCEL_FINANCIAL_SCHEMA,
-        'read_csv_options': {
-            'ignore_errors': True,  # Continue reading even with type errors
-            'null_values': ['', 'NULL', 'null', 'None', 'N/A', '#N/A'],
-        },
         'infer_schema_length': 1000,  # Sample more rows for better type inference
     }
 
@@ -199,13 +218,20 @@ def validate_schema(df: pl.DataFrame, expected_schema: Dict[str, pl.DataType],
 def read_excel_with_schema(file_path: str) -> pl.DataFrame:
     """Read Excel file with predefined schema and error handling."""
     try:
+        # Try with schema first
         options = get_excel_read_options(file_path)
         df = pl.read_excel(file_path, **options)
         return validate_schema(df, EXCEL_FINANCIAL_SCHEMA, strict=False)
     except Exception as e:
-        print(f"Error reading Excel file {file_path}: {e}")
-        # Fallback to basic read
-        return pl.read_excel(file_path)
+        print(f"Error reading Excel file with schema {file_path}: {e}")
+        try:
+            # Fallback to basic read without schema
+            df = pl.read_excel(file_path)
+            return df
+        except Exception as e2:
+            print(f"Error reading Excel file {file_path}: {e2}")
+            # Return empty DataFrame as last resort
+            return pl.DataFrame()
 
 
 def standardize_financial_data(data: list) -> list:

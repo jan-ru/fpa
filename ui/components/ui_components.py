@@ -94,7 +94,19 @@ def create_bulma_date_filter():
                     const start = startDate.value;
                     const end = endDate.value;
                     if (start && end) {
-                        window.location.hash = 'date-filter:' + start + ',' + end;
+                        // Send date filter to backend
+                        fetch('/apply_date_filter', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({start_date: start, end_date: end})
+                        }).then(response => response.json())
+                          .then(data => {
+                              if (data.status === 'success') {
+                                  // Notify user and trigger refresh
+                                  alert('Date filter applied: ' + start + ' to ' + end);
+                                  window.location.reload(); // Refresh to show filtered data
+                              }
+                          });
                         console.log('Date filter applied:', start, 'to', end);
                     } else {
                         alert('Please select both start and end dates');

@@ -94,6 +94,27 @@ class LazyDataLoader:
     def reload_data(self, key: str):
         """Force reload data for specific key."""
         return self.get_data(key, force_reload=True)
+    
+    def get_lazy_data_status(self) -> Dict[str, Any]:
+        """Get status information about the lazy loader."""
+        loaded_keys = [key for key, data in self.loaded_data.items() if data is not None]
+        error_keys = list(self.error_states.keys())
+        
+        details = {}
+        for key in self.loaders:
+            details[key] = {
+                'loaded': key in loaded_keys,
+                'has_error': key in error_keys,
+                'error_message': self.error_states.get(key),
+                'is_loading': self.loading_states.get(key, False)
+            }
+        
+        return {
+            'total_loaders': len(self.loaders),
+            'loaded_count': len(loaded_keys),
+            'error_count': len(error_keys),
+            'details': details
+        }
 
 
 class LazyTabContent:
@@ -189,7 +210,8 @@ def create_lazy_data_card(
     table_columns: list,
     table_id: str,
     subtitle: str = "",
-    show_count: bool = True
+    show_count: bool = True,
+    show_selection: bool = False
 ):
     """Create a data card with lazy loading."""
     
@@ -212,7 +234,8 @@ def create_lazy_data_card(
         data_func=get_lazy_data,
         table_columns=table_columns,
         table_id=table_id,
-        show_count=show_count
+        show_count=show_count,
+        show_selection=show_selection
     )
     
     # Add loading/error indicators
