@@ -45,26 +45,36 @@ class SourceFileFilter:
         """Get list of selected files."""
         return list(self.selected_files)
     
-    def get_filter_condition(self) -> Optional[str]:
-        """Get SQL filter condition for selected files."""
+    def get_filter_condition(self) -> Optional[tuple[str, list]]:
+        """Get parameterized SQL filter condition for selected files.
+
+        Returns:
+            Tuple of (sql_fragment, params) or None if filtering is disabled.
+        """
         if not self.filter_enabled or not self.selected_files:
             return None
-        
-        # Create SQL IN condition for source files
-        files_str = "', '".join(self.selected_files)
-        return f"source_file IN ('{files_str}')"
-    
-    def apply_filter_to_query(self, base_query: str) -> str:
-        """Apply source file filter to a SQL query."""
-        filter_condition = self.get_filter_condition()
-        if not filter_condition:
-            return base_query
-        
+
+        files = list(self.selected_files)
+        placeholders = ', '.join(['?' for _ in files])
+        return f"source_file IN ({placeholders})", files
+
+    def apply_filter_to_query(self, base_query: str) -> tuple[str, list]:
+        """Apply source file filter to a SQL query.
+
+        Returns:
+            Tuple of (modified_query, params) where params are the filter values.
+        """
+        result = self.get_filter_condition()
+        if not result:
+            return base_query, []
+
+        filter_condition, params = result
+
         # Add WHERE clause or extend existing WHERE
         if 'WHERE' in base_query.upper():
-            return f"{base_query} AND {filter_condition}"
+            return f"{base_query} AND {filter_condition}", params
         else:
-            return f"{base_query} WHERE {filter_condition}"
+            return f"{base_query} WHERE {filter_condition}", params
     
     def get_status_summary(self) -> dict:
         """Get summary of current filter status."""

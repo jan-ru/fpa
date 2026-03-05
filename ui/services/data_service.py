@@ -5,6 +5,7 @@ Handles data loading, processing, and preparation for UI components.
 
 from typing import List, Dict
 from data_access import data_access
+from config.constants import DataConfig, UIConfig
 from config.data_schemas import (
     standardize_financial_data, 
     read_excel_with_schema,
@@ -34,7 +35,7 @@ def get_sorted_accounts() -> List[Dict]:
                 years=list(filter_state.years) if filter_state.years else None,
                 quarters=list(filter_state.quarters) if filter_state.quarters else None,
                 months=list(filter_state.months) if filter_state.months else None,
-                limit=50000  # Large limit to get all for aggregation
+                limit=DataConfig.AGGREGATION_FETCH_LIMIT
             )
             
             if transactions:
@@ -55,7 +56,7 @@ def get_sorted_accounts() -> List[Dict]:
         else:
             # No filters, get all accounts
             accounts = data_access.get_account_summary()
-    except:
+    except Exception:
         # Fallback to unfiltered data if filter state is not available
         accounts = data_access.get_account_summary()
     
@@ -86,7 +87,7 @@ def get_limited_transactions(limit: int = 20) -> List[Dict]:
         else:
             # No filters, get regular transaction details
             transactions = data_access.get_transaction_details(limit=limit)
-    except:
+    except Exception:
         # Fallback to unfiltered data if filter state is not available
         transactions = data_access.get_transaction_details(limit=limit)
     
@@ -143,9 +144,9 @@ def get_excel_files_data() -> List[Dict]:
                         debit_sum = df_full.select(pl.col(col_l).cast(pl.Float64, strict=False).sum()).item()
                         if debit_sum is not None:
                             total_debit = debit_sum
-                    except:
+                    except Exception:
                         pass
-                
+
                 # Try to find debit/credit columns by name if positional failed
                 if total_debit == 0.0:
                     debit_columns = [col for col in column_names if any(term in col.lower() for term in ['debit', 'soll', 'amount']) and 'credit' not in col.lower()]
@@ -154,9 +155,9 @@ def get_excel_files_data() -> List[Dict]:
                             debit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
                             if debit_sum is not None and debit_sum > 0:
                                 total_debit += debit_sum
-                        except:
+                        except Exception:
                             pass
-                
+
                 # Find credit columns
                 credit_columns = [col for col in column_names if any(term in col.lower() for term in ['credit', 'haben', 'kredit'])]
                 for col in credit_columns:
@@ -164,7 +165,7 @@ def get_excel_files_data() -> List[Dict]:
                         credit_sum = df_full.select(pl.col(col).cast(pl.Float64, strict=False).sum()).item()
                         if credit_sum is not None and credit_sum > 0:
                             total_credit += credit_sum
-                    except:
+                    except Exception:
                         pass
                 
             except Exception as e:

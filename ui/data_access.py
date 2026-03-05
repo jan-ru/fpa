@@ -24,24 +24,27 @@ class DataAccessLayer:
         """Get connection to dbt warehouse."""
         return duckdb.connect(str(self.dbt_warehouse_path))
     
-    def execute_dbt_query(self, query: str, fetch_all: bool = True) -> Any:
+    def execute_dbt_query(self, query: str, params: list = None, fetch_all: bool = True) -> Any:
         """Execute query against dbt warehouse."""
         with self.get_dbt_connection() as conn:
-            result = conn.execute(query)
+            result = conn.execute(query, params or [])
             return result.fetchall() if fetch_all else result.fetchone()
-    
-    def query_to_dict_list(self, query: str, apply_source_filter: bool = True) -> List[Dict]:
+
+    def query_to_dict_list(self, query: str, params: list = None, apply_source_filter: bool = True) -> List[Dict]:
         """Execute query and convert results to list of dictionaries."""
         # Apply source file filtering if enabled
         if apply_source_filter:
             try:
                 from utils.source_filter import source_filter
-                query = source_filter.apply_filter_to_query(query)
+                query, extra_params = source_filter.apply_filter_to_query(query)
+                params = (params or []) + extra_params
             except ImportError:
-                pass  # Source filtering not available
-        
+                params = params or []
+        else:
+            params = params or []
+
         with self.get_dbt_connection() as conn:
-            result = conn.execute(query).fetchall()
+            result = conn.execute(query, params).fetchall()
             columns = [desc[0] for desc in conn.description]
             return [dict(zip(columns, row)) for row in result]
     
@@ -49,7 +52,7 @@ class DataAccessLayer:
     def get_account_summary(self, limit: int = None, offset: int = 0) -> List[Dict]:
         """Get account summary from dbt mart."""
         query = """
-        SELECT 
+        SELECT
             account_code,
             account_name,
             total_transactions,
@@ -70,11 +73,12 @@ class DataAccessLayer:
         FROM mart_account_summary
         ORDER BY abs(net_balance) DESC
         """
-        
+        params = []
         if limit is not None:
-            query += f" LIMIT {limit} OFFSET {offset}"
-            
-        return self.query_to_dict_list(query)
+            query += " LIMIT ? OFFSET ?"
+            params = [limit, offset]
+
+        return self.query_to_dict_list(query, params)
     
     def get_account_summary_count(self) -> int:
         """Get total count of accounts."""
@@ -84,8 +88,8 @@ class DataAccessLayer:
     
     def get_top_accounts_by_balance(self, limit: int = 10) -> List[Dict]:
         """Get top accounts by balance."""
-        query = f"""
-        SELECT 
+        query = """
+        SELECT
             account_code,
             account_name,
             net_balance,
@@ -93,9 +97,9 @@ class DataAccessLayer:
             activity_status
         FROM mart_account_summary
         ORDER BY abs(net_balance) DESC
-        LIMIT {limit}
+        LIMIT ?
         """
-        return self.query_to_dict_list(query)
+        return self.query_to_dict_list(query, [limit])
     
     def get_account_activity_breakdown(self) -> List[Dict]:
         """Get breakdown of accounts by activity status."""
@@ -114,8 +118,8 @@ class DataAccessLayer:
     # Transaction Methods
     def get_transaction_details(self, limit: int = 1000, offset: int = 0) -> List[Dict]:
         """Get transaction details from dbt mart."""
-        query = f"""
-        SELECT 
+        query = """
+        SELECT
             transaction_id,
             account_code,
             account_name,
@@ -138,9 +142,9 @@ class DataAccessLayer:
             source_file
         FROM mart_transaction_details
         ORDER BY transaction_date DESC, booking_number DESC
-        LIMIT {limit} OFFSET {offset}
+        LIMIT ? OFFSET ?
         """
-        return self.query_to_dict_list(query)
+        return self.query_to_dict_list(query, [limit, offset])
     
     def get_transaction_details_count(self) -> int:
         """Get total count of transactions."""
@@ -148,9 +152,9 @@ class DataAccessLayer:
         result = self.execute_dbt_query(query, fetch_all=False)
         return result[0] if result else 0
     
-    def get_filtered_transactions(self, 
+    def get_filtered_transactions(self,
                                  years: Optional[List[int]] = None,
-                                 quarters: Optional[List[int]] = None, 
+                                 quarters: Optional[List[int]] = None,
                                  months: Optional[List[int]] = None,
                                  account_codes: Optional[List[str]] = None,
                                  amount_categories: Optional[List[str]] = None,
@@ -158,31 +162,38 @@ class DataAccessLayer:
                                  offset: int = 0) -> List[Dict]:
         """Get filtered transactions with enhanced filtering."""
         where_conditions = []
-        
+        params: List[Any] = []
+
         if years:
-            year_list = ', '.join(map(str, years))
-            where_conditions.append(f"transaction_year IN ({year_list})")
-        
+            placeholders = ', '.join(['?' for _ in years])
+            where_conditions.append(f"transaction_year IN ({placeholders})")
+            params.extend(years)
+
         if quarters:
-            quarter_list = ', '.join(map(str, quarters))
-            where_conditions.append(f"transaction_quarter IN ({quarter_list})")
-        
+            placeholders = ', '.join(['?' for _ in quarters])
+            where_conditions.append(f"transaction_quarter IN ({placeholders})")
+            params.extend(quarters)
+
         if months:
-            month_list = ', '.join(map(str, months))
-            where_conditions.append(f"transaction_month IN ({month_list})")
-        
+            placeholders = ', '.join(['?' for _ in months])
+            where_conditions.append(f"transaction_month IN ({placeholders})")
+            params.extend(months)
+
         if account_codes:
-            codes_str = "', '".join(account_codes)
-            where_conditions.append(f"account_code IN ('{codes_str}')")
-        
+            placeholders = ', '.join(['?' for _ in account_codes])
+            where_conditions.append(f"account_code IN ({placeholders})")
+            params.extend(account_codes)
+
         if amount_categories:
-            cats_str = "', '".join(amount_categories)
-            where_conditions.append(f"amount_category IN ('{cats_str}')")
-        
+            placeholders = ', '.join(['?' for _ in amount_categories])
+            where_conditions.append(f"amount_category IN ({placeholders})")
+            params.extend(amount_categories)
+
         where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+        params.extend([limit, offset])
+
         query = f"""
-        SELECT 
+        SELECT
             transaction_id,
             account_code,
             account_name,
@@ -199,9 +210,9 @@ class DataAccessLayer:
         FROM mart_transaction_details
         {where_clause}
         ORDER BY transaction_date DESC, booking_number DESC
-        LIMIT {limit} OFFSET {offset}
+        LIMIT ? OFFSET ?
         """
-        return self.query_to_dict_list(query)
+        return self.query_to_dict_list(query, params)
     
     def get_transaction_stats(self) -> Dict:
         """Get overall transaction statistics."""
@@ -274,8 +285,8 @@ class DataAccessLayer:
     
     def get_monthly_trends(self, months: int = 12) -> List[Dict]:
         """Get monthly transaction trends."""
-        query = f"""
-        SELECT 
+        query = """
+        SELECT
             transaction_year,
             transaction_month,
             COUNT(*) as transaction_count,
@@ -283,12 +294,12 @@ class DataAccessLayer:
             SUM(credit_amount) as total_credit,
             SUM(net_amount) as net_amount
         FROM mart_transaction_details
-        WHERE transaction_date >= current_date - {months * 30}
+        WHERE transaction_date >= current_date - (? * 30)
         GROUP BY transaction_year, transaction_month
         ORDER BY transaction_year DESC, transaction_month DESC
-        LIMIT {months}
+        LIMIT ?
         """
-        return self.query_to_dict_list(query)
+        return self.query_to_dict_list(query, [months, months])
     
     # Data Refresh Methods
     def refresh_dbt_models(self) -> bool:
@@ -303,7 +314,7 @@ class DataAccessLayer:
             query = "SELECT MAX(last_updated) FROM mart_account_summary"
             result = self.execute_dbt_query(query, fetch_all=False)
             return result[0] if result and result[0] else None
-        except:
+        except Exception:
             return None
 
 

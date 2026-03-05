@@ -72,6 +72,7 @@ class DataConfig:
     DEFAULT_TRANSACTION_LIMIT = 1000
     DEFAULT_ACCOUNT_LIMIT = 50
     EXCEL_PREVIEW_LIMIT = 20
+    AGGREGATION_FETCH_LIMIT = 50000  # Max rows fetched for client-side aggregation
     
     # File size limits (MB)
     MAX_FILE_SIZE_MB = 500

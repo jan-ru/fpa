@@ -7,6 +7,7 @@ from typing import Dict, List, Callable, Optional
 from decimal import Decimal
 from nicegui import ui
 from .pagination import PaginationState, create_pagination_controls, get_pagination_state
+from config.constants import UIConfig
 
 
 def create_bulma_table(data: List[Dict], columns: List[str], table_id: str = "bulma-table", show_selection: bool = False) -> ui.html:
@@ -30,9 +31,9 @@ def create_bulma_table(data: List[Dict], columns: List[str], table_id: str = "bu
             header_class = 'has-text-right'
         headers_html += f'<th class="{header_class}">{display_name}</th>'
     
-    # Create table rows (limit to first 20 for performance)
+    # Create table rows (limit for performance, configurable via UIConfig.TABLE_PAGE_SIZE)
     rows_html = ""
-    for i, row in enumerate(data[:20]):
+    for i, row in enumerate(data[:UIConfig.TABLE_PAGE_SIZE]):
         rows_html += "<tr>"
         
         # Add selection checkbox if needed
